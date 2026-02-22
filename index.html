@@ -297,6 +297,75 @@
         ::-webkit-scrollbar-thumb:hover { background: #4e5058; }
 
         .hidden { display: none !important; }
+
+        /* Filter bar */
+        .filter-bar {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 16px;
+            margin-bottom: 16px;
+        }
+        .filter-bar .filter-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            white-space: nowrap;
+        }
+        .filter-bar .filter-group {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .filter-bar .filter-group label {
+            font-size: 0.78rem;
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .filter-bar input[type="date"] {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.8rem;
+            padding: 5px 8px;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .filter-bar input[type="date"]:focus {
+            border-color: var(--accent);
+        }
+        .filter-bar input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.7);
+            cursor: pointer;
+        }
+        .filter-bar .filter-reset {
+            background: none;
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-size: 0.75rem;
+            padding: 5px 10px;
+            cursor: pointer;
+            transition: border-color 0.15s, color 0.15s;
+        }
+        .filter-bar .filter-reset:hover {
+            border-color: var(--accent);
+            color: var(--text-primary);
+        }
+        .filter-bar .filter-count {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-left: auto;
+        }
     </style>
 </head>
 <body>
@@ -332,6 +401,21 @@
         <!-- Dashboard -->
         <div id="dashboard" class="dashboard">
 
+            <!-- Date Filter -->
+            <div class="filter-bar">
+                <span class="filter-label">Filter by date</span>
+                <div class="filter-group">
+                    <label for="filter-after">After</label>
+                    <input type="date" id="filter-after">
+                </div>
+                <div class="filter-group">
+                    <label for="filter-before">Before</label>
+                    <input type="date" id="filter-before">
+                </div>
+                <button class="filter-reset" id="filter-reset">Reset</button>
+                <span class="filter-count" id="filter-count"></span>
+            </div>
+
             <!-- Overview Stats -->
             <div class="section-title">Overview</div>
             <div class="stats-grid" id="stats-overview"></div>
@@ -349,6 +433,8 @@
                         <th>Starts</th>
                         <th>Media</th>
                         <th>Emojis</th>
+                        <th>Calls</th>
+                        <th>Call Time</th>
                     </tr></thead>
                     <tbody id="user-table-body"></tbody>
                 </table>
@@ -363,7 +449,7 @@
                 </div>
                 <div class="chart-card">
                     <div class="chart-title">Who Texts First?</div>
-                    <div class="chart-desc">After gaps longer than 8 hours</div>
+                    <div class="chart-desc">After gaps longer than 1 hour</div>
                     <div class="chart-container"><canvas id="startersChart"></canvas></div>
                 </div>
 
@@ -420,6 +506,33 @@
                 </div>
             </div>
 
+            <!-- Call Analytics -->
+            <div id="calls-section" class="hidden">
+                <div class="section-title">Call Analytics</div>
+                <div class="stats-grid" id="stats-calls"></div>
+
+                <div class="charts-grid" style="margin-top:12px">
+                    <div class="chart-card">
+                        <div class="chart-title">Who Initiates Calls?</div>
+                        <div class="chart-container"><canvas id="callInitiatorChart"></canvas></div>
+                    </div>
+                    <div class="chart-card">
+                        <div class="chart-title">Call Duration Distribution</div>
+                        <div class="chart-desc">Number of calls grouped by duration</div>
+                        <div class="chart-container"><canvas id="callDurationDistChart"></canvas></div>
+                    </div>
+                    <div class="chart-card full-width">
+                        <div class="chart-title">Call Duration Over Time</div>
+                        <div class="chart-desc">Each point is a call, sized by duration</div>
+                        <div class="chart-container tall"><canvas id="callTimelineChart"></canvas></div>
+                    </div>
+                    <div class="chart-card full-width">
+                        <div class="chart-title">Calls by Day of Week</div>
+                        <div class="chart-container"><canvas id="callDayOfWeekChart"></canvas></div>
+                    </div>
+                </div>
+            </div>
+
             <div class="footer">
                 <button onclick="location.reload()">Analyze a different file</button>
             </div>
@@ -444,6 +557,8 @@
             if (file) handleFile(file);
         });
 
+        let rawParsedData = null;
+
         function handleFile(file) {
             document.getElementById('upload-title').textContent = 'Processing…';
             document.getElementById('upload-desc').textContent = file.name;
@@ -451,13 +566,29 @@
             Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
-                complete: results => processData(results.data),
+                complete: results => {
+                    rawParsedData = results.data;
+                    processData(rawParsedData);
+                },
                 error: () => {
                     alert('Could not parse that file. Make sure it\'s a valid DiscordChatExporter CSV.');
                     location.reload();
                 }
             });
         }
+
+        /* ── Filter events ── */
+        document.getElementById('filter-after').addEventListener('change', () => {
+            if (rawParsedData) processData(rawParsedData);
+        });
+        document.getElementById('filter-before').addEventListener('change', () => {
+            if (rawParsedData) processData(rawParsedData);
+        });
+        document.getElementById('filter-reset').addEventListener('click', () => {
+            document.getElementById('filter-after').value = '';
+            document.getElementById('filter-before').value = '';
+            if (rawParsedData) processData(rawParsedData);
+        });
 
         /* ── Helpers ── */
         let charts = {};
@@ -480,6 +611,16 @@
 
         function fmtNum(n) { return Number(n).toLocaleString(); }
 
+        function fmtDuration(mins) {
+            if (mins < 60) return mins + 'm';
+            const h = Math.floor(mins / 60);
+            const m = mins % 60;
+            if (h < 24) return m > 0 ? h + 'h ' + m + 'm' : h + 'h';
+            const d = Math.floor(h / 24);
+            const rh = h % 24;
+            return d + 'd ' + (rh > 0 ? rh + 'h' : '');
+        }
+
         /* ── Chart defaults ── */
         Chart.defaults.font.family = "'Inter', sans-serif";
         Chart.defaults.color = '#b5bac1';
@@ -489,15 +630,38 @@
             const excludeBots = document.getElementById('exclude-bots').checked;
             const botRegex = /#\d{4}/;
 
+            // Date filters
+            const filterAfterVal = document.getElementById('filter-after').value;
+            const filterBeforeVal = document.getElementById('filter-before').value;
+            const filterAfter = filterAfterVal ? new Date(filterAfterVal + 'T00:00:00') : null;
+            const filterBefore = filterBeforeVal ? new Date(filterBeforeVal + 'T23:59:59') : null;
+
             const validData = data.filter(row => {
                 if (!row.Author || !row.Date) return false;
                 if (excludeBots && botRegex.test(row.Author)) return false;
+                const d = new Date(row.Date);
+                if (isNaN(d)) return false;
+                if (filterAfter && d < filterAfter) return false;
+                if (filterBefore && d > filterBefore) return false;
                 return true;
             }).sort((a, b) => new Date(a.Date) - new Date(b.Date));
 
+            // Update filter count
+            const totalRaw = data.filter(r => r.Author && r.Date).length;
+            const filterCountEl = document.getElementById('filter-count');
+            if (filterAfter || filterBefore) {
+                filterCountEl.textContent = fmtNum(validData.length) + ' of ' + fmtNum(totalRaw) + ' messages';
+            } else {
+                filterCountEl.textContent = '';
+            }
+
             if (validData.length === 0) {
-                alert('No valid messages found. Check your CSV file.');
-                location.reload();
+                if (!filterAfter && !filterBefore) {
+                    alert('No valid messages found. Check your CSV file.');
+                    location.reload();
+                } else {
+                    alert('No messages found in the selected date range.');
+                }
                 return;
             }
 
@@ -515,8 +679,8 @@
             topAuthors.forEach(a => authorStats[a] = {
                 msgs: 0, wordCounts: [], responseTimes: [], starters: 0,
                 media: 0, consecutiveStreaks: [], emojis: 0, stickers: 0,
-                voiceMessages: 0, calls: 0, callMinutes: 0, reactions: 0,
-                totalWords: 0
+                voiceMessages: 0, calls: 0, callMinutes: 0, callDurations: [],
+                reactions: 0, totalWords: 0
             });
 
             const hourCounts = new Array(24).fill(0);
@@ -534,6 +698,8 @@
             let totalCallMinutes = 0;
             let totalWords = 0;
             let totalMedia = 0;
+            const allCallDurations = [];    // {date, mins, author}
+            const callDayOfWeekCounts = new Array(7).fill(0);
 
             const stopWords = new Set([
                 "the","and","to","i","a","of","it","in","you","is","for","that","my","on","me","we","this","with",
@@ -568,8 +734,11 @@
                     const mins = parseInt(callMatch[1], 10);
                     authorStats[author].calls++;
                     authorStats[author].callMinutes += mins;
+                    authorStats[author].callDurations.push(mins);
                     totalCalls++;
                     totalCallMinutes += mins;
+                    allCallDurations.push({ date: dateObj, mins, author });
+                    callDayOfWeekCounts[dateObj.getDay()]++;
                 }
 
                 // ── Voice messages ──
@@ -610,7 +779,7 @@
                     const diffMs = dateObj - lastMsgTime;
                     const diffHours = diffMs / (1000 * 60 * 60);
                     const diffMins = diffMs / (1000 * 60);
-                    if (diffHours > 8) {
+                    if (diffHours > 1) {
                         authorStats[author].starters++;
                     } else if (lastAuthor !== author && diffHours < 2) {
                         authorStats[author].responseTimes.push(diffMins);
@@ -683,13 +852,13 @@
             }
             if (currentStreak > maxStreak) maxStreak = currentStreak;
 
-            // ── Conversations (>8h gaps) ──
+            // ── Conversations (>1h gaps) ──
             let totalConversations = 1;
             let prevTime = null;
             validData.forEach(row => {
                 const d = new Date(row.Date);
                 if (isNaN(d)) return;
-                if (prevTime && (d - prevTime) > 8 * 3600000) totalConversations++;
+                if (prevTime && (d - prevTime) > 1 * 3600000) totalConversations++;
                 prevTime = d;
             });
 
@@ -729,7 +898,6 @@
                 { label: 'Voice Messages', value: fmtNum(totalVoiceMessages) },
                 { label: 'Stickers Sent', value: fmtNum(totalStickers) },
                 { label: 'Custom Emojis', value: fmtNum(totalEmojis) },
-                { label: 'Calls', value: fmtNum(totalCalls), sub: totalCallMinutes > 0 ? fmtNum(totalCallMinutes) + ' min total' : '' },
                 { label: 'Date Range', value: firstDate, sub: 'to ' + lastDate },
             ];
 
@@ -754,6 +922,7 @@
                         ? (s.responseTimes.reduce((a,b) => a+b, 0) / s.responseTimes.length).toFixed(1) + ' min'
                         : '—';
                     const barW = maxMsgs > 0 ? (s.msgs / maxMsgs * 100) : 0;
+                    const callTime = s.callMinutes > 0 ? fmtDuration(s.callMinutes) : '—';
                     return `<tr>
                         <td class="user-name">${name}</td>
                         <td>${fmtNum(s.msgs)}</td>
@@ -766,6 +935,8 @@
                         <td>${fmtNum(s.starters)}</td>
                         <td>${fmtNum(s.media)}</td>
                         <td>${fmtNum(s.emojis)}</td>
+                        <td>${fmtNum(s.calls)}</td>
+                        <td>${callTime}</td>
                     </tr>`;
                 }).join('');
 
@@ -782,6 +953,42 @@
             renderDayOfWeekChart(dayOfWeekCounts);
             renderTimeOfDayChart(hourCounts);
             renderEmojiChart(customEmojiCounts);
+
+            // ── Call Analytics ──
+            if (totalCalls > 0) {
+                document.getElementById('calls-section').classList.remove('hidden');
+
+                const allMins = allCallDurations.map(c => c.mins);
+                const longestCall = Math.max(...allMins);
+                const shortestCall = Math.min(...allMins);
+                const avgCallDur = (totalCallMinutes / totalCalls).toFixed(1);
+                let topCaller = { name: '—', count: 0 };
+                Object.entries(authorStats).forEach(([name, s]) => {
+                    if (s.calls > topCaller.count) topCaller = { name, count: s.calls };
+                });
+
+                const callStats = [
+                    { label: 'Total Calls', value: fmtNum(totalCalls) },
+                    { label: 'Total Call Time', value: fmtDuration(totalCallMinutes) },
+                    { label: 'Average Call', value: fmtDuration(Math.round(parseFloat(avgCallDur))) },
+                    { label: 'Longest Call', value: fmtDuration(longestCall) },
+                    { label: 'Shortest Call', value: fmtDuration(shortestCall) },
+                    { label: 'Most Active Caller', value: topCaller.name, sub: fmtNum(topCaller.count) + ' calls' },
+                ];
+
+                document.getElementById('stats-calls').innerHTML = callStats.map(s =>
+                    `<div class="stat-card">
+                        <div class="label">${s.label}</div>
+                        <div class="value" title="${s.value}">${s.value}</div>
+                        ${s.sub ? `<div class="sub">${s.sub}</div>` : ''}
+                    </div>`
+                ).join('');
+
+                renderPieChart(authorStats, 'callInitiatorChart', 'calls');
+                renderCallDurationDistChart(allMins);
+                renderCallTimelineChart(allCallDurations);
+                renderCallDayOfWeekChart(callDayOfWeekCounts);
+            }
         }
 
         function destroyChart(id) { if (charts[id]) charts[id].destroy(); }
@@ -1008,6 +1215,94 @@
                     x: { grid: { display: false }, ticks: { color: tickColor, maxTicksLimit: 12 } },
                     y: { grid: { color: gridColor }, ticks: { color: tickColor } }
                 }})
+            });
+        }
+
+        function renderCallDurationDistChart(allMins) {
+            destroyChart('callDurationDistChart');
+            const ctx = document.getElementById('callDurationDistChart').getContext('2d');
+            // Bucket calls into duration ranges
+            const buckets = {
+                '< 5m': 0, '5–15m': 0, '15–30m': 0, '30m–1h': 0,
+                '1–2h': 0, '2–4h': 0, '4h+': 0
+            };
+            allMins.forEach(m => {
+                if (m < 5) buckets['< 5m']++;
+                else if (m < 15) buckets['5–15m']++;
+                else if (m < 30) buckets['15–30m']++;
+                else if (m < 60) buckets['30m–1h']++;
+                else if (m < 120) buckets['1–2h']++;
+                else if (m < 240) buckets['2–4h']++;
+                else buckets['4h+']++;
+            });
+            const labels = Object.keys(buckets);
+            const data = Object.values(buckets);
+            charts['callDurationDistChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{ label: 'Calls', data, backgroundColor: palette[1], borderRadius: 3 }]
+                },
+                options: barOpts()
+            });
+        }
+
+        function renderCallTimelineChart(allCallDurations) {
+            destroyChart('callTimelineChart');
+            const ctx = document.getElementById('callTimelineChart').getContext('2d');
+            const labels = allCallDurations.map(c => c.date.toISOString().split('T')[0]);
+            const data = allCallDurations.map(c => c.mins);
+            const pointSizes = data.map(m => Math.max(3, Math.min(12, m / 20)));
+            charts['callTimelineChart'] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels,
+                    datasets: [{
+                        label: 'Duration (min)', data,
+                        borderColor: palette[4], backgroundColor: 'rgba(235,69,158,0.15)',
+                        borderWidth: 1.5, fill: true, tension: 0.2,
+                        pointRadius: pointSizes, pointBackgroundColor: palette[4],
+                        pointHoverRadius: 8
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => {
+                                    const c = allCallDurations[ctx.dataIndex];
+                                    return c.author + ': ' + fmtDuration(c.mins);
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: tickColor, maxTicksLimit: 10 } },
+                        y: {
+                            grid: { color: gridColor }, ticks: { color: tickColor,
+                                callback: v => fmtDuration(v)
+                            },
+                            title: { display: true, text: 'Duration', color: tickColor, font: { size: 11 } }
+                        }
+                    },
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false }
+                }
+            });
+        }
+
+        function renderCallDayOfWeekChart(callDayOfWeekCounts) {
+            destroyChart('callDayOfWeekChart');
+            const ctx = document.getElementById('callDayOfWeekChart').getContext('2d');
+            const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+            charts['callDayOfWeekChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels,
+                    datasets: [{ label: 'Calls', data: callDayOfWeekCounts, backgroundColor: palette[0], borderRadius: 3 }]
+                },
+                options: barOpts()
             });
         }
     </script>
