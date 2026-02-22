@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Chat Analyzer 📊 | Private Conversation Insights</title>
+    <meta name="description" content="A private, local-first tool to analyze your Discord chat history. Visualize message distribution, response times, and activity trends without uploading any data.">
+    
+    <!-- Open Graph / Discord Preview -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Discord Chat Analyzer 📊">
+    <meta property="og:description" content="Safely analyze your Discord chats in your browser. Complete privacy, no data uploads.">
+    <meta property="og:image" content="public/preview.png">
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #1e1e2e;
+            color: #cdd6f4;
+        }
+        .glass-panel {
+            background: rgba(49, 50, 68, 0.6);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 1rem;
+        }
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-track { background: #1e1e2e; }
+        ::-webkit-scrollbar-thumb { background: #45475a; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #585b70; }
+    </style>
+</head>
+<body class="min-h-screen p-4 md:p-8">
+
+    <!-- Header -->
+    <header class="max-w-6xl mx-auto text-center mb-10 mt-6">
+        <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 mb-4">
+            Discord Chat Analyzer 📊
+        </h1>
+        <p class="text-gray-400 text-lg">Upload your DiscordChatExporter CSV to instantly generate advanced conversation insights.</p>
+    </header>
+
+    <!-- Upload Section -->
+    <main class="max-w-6xl mx-auto">
+        <div id="upload-section" class="glass-panel p-10 text-center flex flex-col items-center justify-center border-dashed border-2 border-indigo-500/30 hover:border-indigo-400 transition-colors cursor-pointer rounded-2xl">
+            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-indigo-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+            </svg>
+            <h2 class="text-2xl font-bold text-white mb-2">Select your Chat Data</h2>
+            <p class="text-gray-400 mb-6">Choose the .csv file you exported from DiscordChatExporter</p>
+            <label class="bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 text-white font-bold py-3 px-8 rounded-full shadow-lg cursor-pointer transition-transform transform hover:scale-105">
+                Browse Files
+                <input type="file" id="csv-upload" accept=".csv" class="hidden" />
+            </label>
+            
+            <div class="flex items-center justify-center space-x-2 mt-6">
+                <input type="checkbox" id="exclude-bots" class="w-4 h-4 accent-indigo-500 bg-gray-700 border-gray-600 cursor-pointer" checked>
+                <label for="exclude-bots" class="text-gray-300 text-sm cursor-pointer">Exclude bots (usernames containing #XXXX)</label>
+            </div>
+
+            <p class="text-xs text-gray-500 mt-4">100% Private. Processed locally in your browser.</p>
+        </div>
+
+        <!-- Dashboard Section (Hidden until upload) -->
+        <div id="dashboard" class="hidden space-y-8">
+            
+            <!-- Key Stats Row 1 -->
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div class="glass-panel p-4 md:p-6 text-center">
+                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Total Messages</h3>
+                    <div id="stat-total" class="text-2xl md:text-4xl font-extrabold text-white">0</div>
+                </div>
+                <div class="glass-panel p-4 md:p-6 text-center">
+                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Top Sender</h3>
+                    <div id="stat-yapper" class="text-2xl md:text-4xl font-extrabold text-indigo-400">Loading</div>
+                </div>
+                <div class="glass-panel p-4 md:p-6 text-center">
+                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Initiates Most Chats</h3>
+                    <div id="stat-starter" class="text-2xl md:text-4xl font-extrabold text-pink-400">Loading</div>
+                </div>
+            </div>
+
+            <!-- Key Stats Row 2 -->
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div class="glass-panel p-4 md:p-6 text-center">
+                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Busiest Day Ever</h3>
+                    <div id="stat-busiest-day" class="text-lg md:text-2xl font-extrabold text-cyan-400">Loading</div>
+                    <div id="stat-busiest-count" class="text-sm text-gray-400 mt-1">0 msgs</div>
+                </div>
+                <div class="glass-panel p-4 md:p-6 text-center">
+                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Daily Average</h3>
+                    <div id="stat-daily-avg" class="text-2xl md:text-4xl font-extrabold text-yellow-400">0</div>
+                </div>
+                <div class="glass-panel p-4 md:p-6 text-center">
+                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Longest Streak</h3>
+                    <div id="stat-streak" class="text-2xl md:text-4xl font-extrabold text-green-400">0 Days</div>
+                </div>
+            </div>
+
+            <!-- Charts Grid 1 -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold text-white mb-4 text-center">Message Distribution</h3>
+                    <div class="chart-container flex justify-center">
+                        <canvas id="pieChart"></canvas>
+                    </div>
+                </div>
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold text-white mb-4 text-center">Who Texts First? (>8h gaps)</h3>
+                    <div class="chart-container flex justify-center">
+                        <canvas id="startersChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Grid 2 (Length and Response Time) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold text-white mb-4 text-center">Double Texting Rate</h3>
+                    <p class="text-xs text-center text-gray-400 mb-2">Avg. consecutive messages sent before a reply.</p>
+                    <div class="chart-container">
+                        <canvas id="doubleTextChart"></canvas>
+                    </div>
+                </div>
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold text-white mb-4 text-center">Average Response Time (Minutes)</h3>
+                    <p class="text-xs text-center text-gray-400 mb-2">How fast a user replies to the other person.</p>
+                    <div class="chart-container">
+                        <canvas id="responseTimeChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Grid 3 (Media and Average Length) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold text-white mb-4 text-center">Avg vs Median Message Length</h3>
+                    <p class="text-xs text-center text-gray-400 mb-2">Median ignores abnormally long paragraphs to find the true middle.</p>
+                    <div class="chart-container">
+                        <canvas id="msgLengthChart"></canvas>
+                    </div>
+                </div>
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold text-white mb-4 text-center">Media & Links Shared</h3>
+                    <p class="text-xs text-center text-gray-400 mb-2">Attachments, Images, and URLs sent.</p>
+                    <div class="chart-container flex justify-center">
+                        <canvas id="mediaChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Charts Grid 4 (Words and Periods) -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold text-white mb-4 text-center">Most Frequent Words</h3>
+                    <div class="chart-container">
+                        <canvas id="wordsChart"></canvas>
+                    </div>
+                </div>
+                <div class="glass-panel p-6">
+                    <h3 class="text-xl font-bold text-white mb-4 text-center">Messages by Time Period</h3>
+                    <div class="chart-container flex justify-center">
+                        <canvas id="timePeriodChart"></canvas>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Time Charts -->
+            <div class="glass-panel p-6">
+                <h3 class="text-xl font-bold text-white mb-4 text-center">Most Active Days of the Week</h3>
+                <div class="chart-container">
+                    <canvas id="dayOfWeekChart"></canvas>
+                </div>
+            </div>
+
+            <div class="glass-panel p-6">
+                <h3 class="text-xl font-bold text-white mb-4 text-center">Activity Over Time</h3>
+                <div class="chart-container" style="height: 350px;">
+                    <canvas id="timelineChart"></canvas>
+                </div>
+            </div>
+
+            <div class="glass-panel p-6">
+                <h3 class="text-xl font-bold text-white mb-4 text-center">Activity by Time of Day</h3>
+                <div class="chart-container" style="height: 300px;">
+                    <canvas id="timeOfDayChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Reset Button -->
+            <div class="text-center mt-8 pb-8">
+                <button onclick="location.reload()" class="text-gray-400 hover:text-white underline transition-colors">
+                    Upload a different file
+                </button>
+            </div>
+
+        </div>
+    </main>
+
+    <script>
+        let charts = {};
+
+        const colors = [
+            '#89b4fa', // Blue
+            '#cba6f7', // Mauve
+            '#a6e3a1', // Green
+            '#f38ba8', // Red
+            '#f9e2af', // Yellow
+            '#94e2d5', // Teal
+        ];
+
+        document.getElementById('csv-upload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            document.querySelector('#upload-section h2').innerText = "Analyzing Messages...";
+            document.querySelector('#upload-section p').innerText = "Running advanced metrics, please wait...";
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                complete: function(results) {
+                    processData(results.data);
+                },
+                error: function(err) {
+                    alert("Error parsing CSV. Please ensure it's a valid DiscordChatExporter export.");
+                    location.reload();
+                }
+            });
+        });
+
+        function getMedian(arr) {
+            if (arr.length === 0) return 0;
+            const sorted = [...arr].sort((a, b) => a - b);
+            const middle = Math.floor(sorted.length / 2);
+            if (sorted.length % 2 === 0) {
+                return (sorted[middle - 1] + sorted[middle]) / 2;
+            }
+            return sorted[middle];
+        }
+
+        function processData(data) {
+            const excludeBots = document.getElementById('exclude-bots').checked;
+            const botRegex = /#\d{4}/;
+
+            const validData = data.filter(row => {
+                if (!row.Author || !row.Date) return false;
+                if (excludeBots && botRegex.test(row.Author)) return false;
+                return true;
+            }).sort((a, b) => new Date(a.Date) - new Date(b.Date));
+            
+            if (validData.length === 0) {
+                alert("No valid messages found. Check your CSV file.");
+                location.reload();
+                return;
+            }
+
+            const globalAuthorCounts = {};
+            validData.forEach(r => {
+                globalAuthorCounts[r.Author] = (globalAuthorCounts[r.Author] || 0) + 1;
+            });
+            const topAuthors = Object.entries(globalAuthorCounts)
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, 5)
+                .map(item => item[0]);
+
+            const authorStats = {}; 
+            // Added media count and consecutive streak arrays
+            topAuthors.forEach(a => authorStats[a] = { msgs: 0, wordCounts: [], responseTimes: [], starters: 0, media: 0, consecutiveStreaks: [] });
+
+            const hourCounts = new Array(24).fill(0);
+            const timePeriodCounts = { morning: 0, afternoon: 0, evening: 0, night: 0 };
+            const dateCounts = {};
+            const dayOfWeekCounts = new Array(7).fill(0);
+            const wordCounts = {};
+
+            const stopWords = new Set([
+                "the","and","to","i","a","of","it","in","you","is","for","that","my","on","me","we","this","with",
+                "so","be","but","was","have","not","your","like","just","are","do","im","can","what","if","all",
+                "get","out","about","when","know","up","how","they","as","at","it's","i'm","don't","dont","or",
+                "from","no","he","she","would","got","too","ur","u","its","that's","then","there","was","were",
+                "been","will","going","really","some","because","cuz","cause","https","http","com","www","net","org",
+                "png","jpg","jpeg","gif","mp4","mov","webp","discordapp","cdn"
+            ]);
+
+            let lastMsgTime = null;
+            let lastAuthor = null;
+            let currentStreakCounter = 0;
+
+            validData.forEach(row => {
+                const author = row.Author;
+                if (!topAuthors.includes(author)) return; 
+
+                const dateObj = new Date(row.Date);
+                if (isNaN(dateObj)) return;
+
+                const content = row.Content || "";
+
+                // --- Consecutive Messages (Double Texting) ---
+                if (author === lastAuthor) {
+                    currentStreakCounter++;
+                } else {
+                    if (lastAuthor && authorStats[lastAuthor]) {
+                        authorStats[lastAuthor].consecutiveStreaks.push(currentStreakCounter);
+                    }
+                    currentStreakCounter = 1;
+                }
+
+                // --- Timestamps and Advanced Metrics ---
+                if (lastMsgTime) {
+                    const diffMs = dateObj - lastMsgTime;
+                    const diffHours = diffMs / (1000 * 60 * 60);
+                    const diffMins = diffMs / (1000 * 60);
+
+                    if (diffHours > 8) {
+                        authorStats[author].starters++;
+                    } else if (lastAuthor !== author && diffHours < 2) {
+                        authorStats[author].responseTimes.push(diffMins);
+                    }
+                } else {
+                    authorStats[author].starters++;
+                }
+                
+                lastMsgTime = dateObj;
+                lastAuthor = author;
+
+                // --- Media & Links ---
+                if ((row.Attachments && row.Attachments.trim() !== "") || content.includes('http://') || content.includes('https://')) {
+                    authorStats[author].media++;
+                }
+
+                // --- Standard Counting ---
+                authorStats[author].msgs++;
+                const hour = dateObj.getHours();
+                hourCounts[hour]++;
+                dayOfWeekCounts[dateObj.getDay()]++;
+
+                // Time Periods
+                if (hour >= 6 && hour < 12) timePeriodCounts.morning++;
+                else if (hour >= 12 && hour < 18) timePeriodCounts.afternoon++;
+                else if (hour >= 18 && hour <= 23) timePeriodCounts.evening++;
+                else timePeriodCounts.night++;
+
+                const dateStr = dateObj.toISOString().split('T')[0];
+                dateCounts[dateStr] = (dateCounts[dateStr] || 0) + 1;
+
+                // --- Word Counts & Averages ---
+                const rawWords = content.trim().split(/\s+/).filter(w => w.length > 0);
+                authorStats[author].wordCounts.push(rawWords.length);
+
+                let cleanContent = content.replace(/https?:\/\/[^\s]+/g, '');
+                const words = cleanContent.toLowerCase().match(/\b[a-z']+\b/g);
+                if (words) {
+                    words.forEach(w => {
+                        if (w.length > 2 && !stopWords.has(w)) {
+                            wordCounts[w] = (wordCounts[w] || 0) + 1;
+                        }
+                    });
+                }
+            });
+
+            // Push the very last consecutive streak
+            if (lastAuthor && authorStats[lastAuthor]) {
+                authorStats[lastAuthor].consecutiveStreaks.push(currentStreakCounter);
+            }
+
+            // Calculate Longest Streak and Busiest Day
+            const sortedDates = Object.keys(dateCounts).sort();
+            let maxStreak = 0;
+            let currentStreak = 0;
+            let busiestDay = { date: "", count: 0 };
+
+            for (let i = 0; i < sortedDates.length; i++) {
+                // Busiest Day Check
+                if (dateCounts[sortedDates[i]] > busiestDay.count) {
+                    busiestDay = { date: sortedDates[i], count: dateCounts[sortedDates[i]] };
+                }
+
+                // Streak Check
+                if (i === 0) {
+                    currentStreak = 1;
+                } else {
+                    const prevDate = new Date(sortedDates[i-1]);
+                    const currDate = new Date(sortedDates[i]);
+                    const diffDays = (currDate - prevDate) / (1000 * 60 * 60 * 24);
+                    
+                    if (Math.round(diffDays) === 1) {
+                        currentStreak++;
+                    } else {
+                        if (currentStreak > maxStreak) maxStreak = currentStreak;
+                        currentStreak = 1;
+                    }
+                }
+            }
+            if (currentStreak > maxStreak) maxStreak = currentStreak;
+
+            // UI Updates
+            document.getElementById('upload-section').classList.add('hidden');
+            document.getElementById('dashboard').classList.remove('hidden');
+
+            let totalProcessedMsgs = 0;
+            let topSender = { name: "", count: 0 };
+            let topStarter = { name: "", count: 0 };
+
+            Object.keys(authorStats).forEach(author => {
+                totalProcessedMsgs += authorStats[author].msgs;
+                if (authorStats[author].msgs > topSender.count) {
+                    topSender = { name: author, count: authorStats[author].msgs };
+                }
+                if (authorStats[author].starters > topStarter.count) {
+                    topStarter = { name: author, count: authorStats[author].starters };
+                }
+            });
+
+            // Daily Average
+            const totalDays = sortedDates.length > 0 ? sortedDates.length : 1;
+            const dailyAvg = Math.round(totalProcessedMsgs / totalDays);
+
+            document.getElementById('stat-total').innerText = totalProcessedMsgs.toLocaleString();
+            document.getElementById('stat-yapper').innerText = topSender.name;
+            document.getElementById('stat-streak').innerText = `${maxStreak} Days`;
+            document.getElementById('stat-starter').innerText = topStarter.name;
+            document.getElementById('stat-daily-avg').innerText = dailyAvg.toLocaleString();
+            document.getElementById('stat-busiest-day').innerText = busiestDay.date;
+            document.getElementById('stat-busiest-count').innerText = `${busiestDay.count.toLocaleString()} msgs`;
+
+            // Render Charts
+            renderPieChart(authorStats, 'pieChart', 'msgs');
+            renderPieChart(authorStats, 'startersChart', 'starters');
+            renderPieChart(authorStats, 'mediaChart', 'media'); // Reused Doughnut for Media
+            renderMsgLengthChart(authorStats);
+            renderResponseTimeChart(authorStats);
+            renderDoubleTextChart(authorStats);
+            renderTimePeriodChart(timePeriodCounts);
+            renderWordsChart(wordCounts);
+            renderTimelineChart(dateCounts);
+            renderDayOfWeekChart(dayOfWeekCounts);
+            renderTimeOfDayChart(hourCounts);
+        }
+
+        function destroyChart(id) {
+            if (charts[id]) charts[id].destroy();
+        }
+
+        // --- CHART: Generic Doughnut Chart for Authors ---
+        function renderPieChart(authorStats, canvasId, dataKey) {
+            destroyChart(canvasId);
+            const ctx = document.getElementById(canvasId).getContext('2d');
+            
+            const labels = Object.keys(authorStats).filter(a => authorStats[a][dataKey] > 0);
+            const data = labels.map(a => authorStats[a][dataKey]);
+
+            charts[canvasId] = new Chart(ctx, {
+                type: 'doughnut',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: colors.slice(0, labels.length),
+                        borderColor: '#1e1e2e',
+                        borderWidth: 4,
+                        hoverOffset: 10
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#cdd6f4', font: {family: 'Inter'} } } }
+                }
+            });
+        }
+
+        // --- CHART: Double Texting Rate ---
+        function renderDoubleTextChart(authorStats) {
+            destroyChart('doubleTextChart');
+            const ctx = document.getElementById('doubleTextChart').getContext('2d');
+            
+            const labels = Object.keys(authorStats).filter(a => authorStats[a].consecutiveStreaks.length > 0);
+            const data = labels.map(a => {
+                const arr = authorStats[a].consecutiveStreaks;
+                return (arr.reduce((sum, val) => sum + val, 0) / arr.length).toFixed(2);
+            });
+
+            charts['doubleTextChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Avg. Consecutive Messages',
+                        data: data,
+                        backgroundColor: '#89b4fa',
+                        borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#a6adc8' } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
+                    }
+                }
+            });
+        }
+
+        // --- CHART: Time Periods (Polar Area) ---
+        function renderTimePeriodChart(timePeriodCounts) {
+            destroyChart('timePeriodChart');
+            const ctx = document.getElementById('timePeriodChart').getContext('2d');
+            
+            const labels = ['Night Owl (12AM-6AM)', 'Morning (6AM-12PM)', 'Afternoon (12PM-6PM)', 'Evening (6PM-12AM)'];
+            const data = [timePeriodCounts.night, timePeriodCounts.morning, timePeriodCounts.afternoon, timePeriodCounts.evening];
+            // Match custom colors to vibe (Dark Blue, Yellow, Orange/Green, Purple)
+            const periodColors = ['#89b4fa', '#f9e2af', '#a6e3a1', '#cba6f7'];
+
+            charts['timePeriodChart'] = new Chart(ctx, {
+                type: 'polarArea',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        data: data,
+                        backgroundColor: periodColors.map(c => c + 'AA'), // Add transparency
+                        borderColor: '#1e1e2e',
+                        borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { position: 'bottom', labels: { color: '#cdd6f4', font: {family: 'Inter'} } } },
+                    scales: { r: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.1)' } } }
+                }
+            });
+        }
+
+        // --- CHART: Avg vs Median Length ---
+        function renderMsgLengthChart(authorStats) {
+            destroyChart('msgLengthChart');
+            const ctx = document.getElementById('msgLengthChart').getContext('2d');
+            
+            const labels = Object.keys(authorStats).filter(a => authorStats[a].msgs > 0);
+            
+            const avgData = labels.map(a => {
+                const arr = authorStats[a].wordCounts;
+                if (arr.length === 0) return 0;
+                return (arr.reduce((sum, val) => sum + val, 0) / arr.length).toFixed(1);
+            });
+
+            const medianData = labels.map(a => getMedian(authorStats[a].wordCounts));
+
+            charts['msgLengthChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: 'Average Words', data: avgData, backgroundColor: '#89b4fa', borderRadius: 4 },
+                        { label: 'Median Words', data: medianData, backgroundColor: '#cba6f7', borderRadius: 4 }
+                    ]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { labels: { color: '#cdd6f4' } } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#a6adc8' } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
+                    }
+                }
+            });
+        }
+
+        // --- CHART: Response Time ---
+        function renderResponseTimeChart(authorStats) {
+            destroyChart('responseTimeChart');
+            const ctx = document.getElementById('responseTimeChart').getContext('2d');
+            
+            const labels = Object.keys(authorStats).filter(a => authorStats[a].responseTimes.length > 0);
+            const data = labels.map(a => {
+                const arr = authorStats[a].responseTimes;
+                if (arr.length === 0) return 0;
+                return (arr.reduce((sum, val) => sum + val, 0) / arr.length).toFixed(1);
+            });
+
+            charts['responseTimeChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Avg Response Time (Mins)', data: data, backgroundColor: '#f38ba8', borderRadius: 4
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#a6adc8' } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
+                    }
+                }
+            });
+        }
+
+        // --- CHART: Top Words ---
+        function renderWordsChart(wordCounts) {
+            destroyChart('wordsChart');
+            const ctx = document.getElementById('wordsChart').getContext('2d');
+            const sortedWords = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
+            
+            charts['wordsChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sortedWords.map(item => item[0]),
+                    datasets: [{ data: sortedWords.map(item => item[1]), backgroundColor: '#a6e3a1', borderRadius: 6 }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } },
+                        y: { grid: { display: false }, ticks: { color: '#cdd6f4', font: {weight: 'bold'} } }
+                    }
+                }
+            });
+        }
+
+        // --- CHART: Timeline ---
+        function renderTimelineChart(dateCounts) {
+            destroyChart('timelineChart');
+            const ctx = document.getElementById('timelineChart').getContext('2d');
+            const sortedDates = Object.keys(dateCounts).sort();
+            const data = sortedDates.map(date => dateCounts[date]);
+
+            charts['timelineChart'] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: sortedDates,
+                    datasets: [{
+                        label: 'Messages', data: data, borderColor: '#89b4fa', backgroundColor: 'rgba(137, 180, 250, 0.2)',
+                        borderWidth: 2, fill: true, tension: 0.3, pointRadius: data.length > 30 ? 0 : 3
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#a6adc8', maxTicksLimit: 10 } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
+                    },
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false }
+                }
+            });
+        }
+
+        // --- CHART: Day of the Week ---
+        function renderDayOfWeekChart(dayOfWeekCounts) {
+            destroyChart('dayOfWeekChart');
+            const ctx = document.getElementById('dayOfWeekChart').getContext('2d');
+            const labels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+            charts['dayOfWeekChart'] = new Chart(ctx, {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Messages', data: dayOfWeekCounts, backgroundColor: 'rgba(203, 166, 247, 0.4)',
+                        borderColor: '#cba6f7', pointBackgroundColor: '#f5c2e7', borderWidth: 2
+                    }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: {
+                        r: {
+                            angleLines: { color: 'rgba(255, 255, 255, 0.1)' }, grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                            pointLabels: { color: '#cdd6f4', font: { size: 12, family: 'Inter' } }, ticks: { display: false }
+                        }
+                    }
+                }
+            });
+        }
+
+        // --- CHART: Time of Day ---
+        function renderTimeOfDayChart(hourCounts) {
+            destroyChart('timeOfDayChart');
+            const ctx = document.getElementById('timeOfDayChart').getContext('2d');
+            const labels = ['12 AM','1 AM','2 AM','3 AM','4 AM','5 AM','6 AM','7 AM','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','9 PM','10 PM','11 PM'];
+
+            charts['timeOfDayChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{ label: 'Messages', data: hourCounts, backgroundColor: '#94e2d5', borderRadius: 4 }]
+                },
+                options: {
+                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { display: false }, ticks: { color: '#a6adc8', maxTicksLimit: 12 } },
+                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
+                    }
+                }
+            });
+        }
+    </script>
+</body>
+</html>
