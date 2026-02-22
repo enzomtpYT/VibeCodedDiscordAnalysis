@@ -3,251 +3,488 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Discord Chat Analyzer 📊 | Private Conversation Insights</title>
-    <meta name="description" content="A private, local-first tool to analyze your Discord chat history. Visualize message distribution, response times, and activity trends without uploading any data.">
-    
+    <title>Discord Chat Analyzer</title>
+    <meta name="description" content="Analyze your Discord chat exports locally in your browser. No data leaves your machine.">
+
     <!-- Open Graph / Discord Preview -->
     <meta property="og:type" content="website">
-    <meta property="og:title" content="Discord Chat Analyzer 📊">
-    <meta property="og:description" content="Safely analyze your Discord chats in your browser. Complete privacy, no data uploads.">
+    <meta property="og:title" content="Discord Chat Analyzer">
+    <meta property="og:description" content="Analyze your Discord chat exports locally in your browser.">
     <meta property="og:image" content="public/preview.png">
-    
-    <script src="https://cdn.tailwindcss.com"></script>
+
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
-            background-color: #1e1e2e;
-            color: #cdd6f4;
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg-primary: #2b2d31;
+            --bg-secondary: #1e1f22;
+            --bg-tertiary: #313338;
+            --bg-card: #2b2d31;
+            --text-primary: #f2f3f5;
+            --text-secondary: #b5bac1;
+            --text-muted: #949ba4;
+            --border: #3f4147;
+            --accent: #5865f2;
+            --accent-hover: #4752c4;
+            --green: #57f287;
+            --yellow: #fee75c;
+            --red: #ed4245;
+            --fuchsia: #eb459e;
         }
-        .glass-panel {
-            background: rgba(49, 50, 68, 0.6);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.05);
-            border-radius: 1rem;
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background-color: var(--bg-secondary);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 24px 16px;
+        }
+
+        /* ---- Header ---- */
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 24px;
+            padding-bottom: 16px;
+            border-bottom: 1px solid var(--border);
+        }
+        .header h1 {
+            font-size: 1.25rem;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+        .header .subtitle {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            font-weight: 400;
+        }
+
+        /* ---- Upload Area ---- */
+        .upload-area {
+            background: var(--bg-tertiary);
+            border: 2px dashed var(--border);
+            border-radius: 8px;
+            padding: 48px 24px;
+            text-align: center;
+            transition: border-color 0.15s ease, background-color 0.15s ease;
+            cursor: pointer;
+        }
+        .upload-area:hover, .upload-area.dragover {
+            border-color: var(--accent);
+            background: rgba(88, 101, 242, 0.04);
+        }
+        .upload-area .icon {
+            width: 40px;
+            height: 40px;
+            margin: 0 auto 12px;
+            color: var(--text-muted);
+        }
+        .upload-area h2 {
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .upload-area .desc {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+        .upload-btn {
+            display: inline-block;
+            background: var(--accent);
+            color: #fff;
+            font-size: 0.85rem;
+            font-weight: 600;
+            padding: 8px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.15s ease;
+        }
+        .upload-btn:hover {
+            background: var(--accent-hover);
+        }
+        .upload-options {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 14px;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+        }
+        .upload-options input[type="checkbox"] {
+            accent-color: var(--accent);
+            width: 14px;
+            height: 14px;
+            cursor: pointer;
+        }
+        .upload-options label { cursor: pointer; }
+        .upload-note {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            margin-top: 12px;
+            opacity: 0.7;
+        }
+
+        /* ---- Dashboard ---- */
+        .dashboard { display: none; }
+        .dashboard.visible { display: block; }
+
+        /* Section headers */
+        .section-title {
+            font-size: 0.7rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 10px;
+            margin-top: 20px;
+        }
+        .section-title:first-child { margin-top: 0; }
+
+        /* Stats Grid — prevent text overflow */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 10px;
+            margin-bottom: 8px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 14px 16px;
+            min-width: 0; /* allow flex shrink */
+        }
+        .stat-card .label {
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 4px;
+            white-space: nowrap;
+        }
+        .stat-card .value {
+            font-size: 1.35rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .stat-card .sub {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 2px;
+        }
+
+        /* Per-user breakdown table */
+        .user-table-wrap {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 12px;
+        }
+        .user-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.8rem;
+            min-width: 600px;
+        }
+        .user-table th {
+            text-align: left;
+            font-size: 0.68rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            padding: 10px 14px;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+        }
+        .user-table td {
+            padding: 9px 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            color: var(--text-secondary);
+            white-space: nowrap;
+        }
+        .user-table tr:last-child td { border-bottom: none; }
+        .user-table .user-name {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+        .user-table .bar-cell { min-width: 120px; }
+        .user-bar {
+            height: 6px;
+            border-radius: 3px;
+            background: var(--accent);
+            display: block;
+        }
+
+        /* Charts */
+        .charts-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 12px;
+        }
+        @media (max-width: 700px) {
+            .charts-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); }
+        }
+        .chart-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 16px;
+        }
+        .chart-card.full-width {
+            grid-column: 1 / -1;
+        }
+        .chart-card .chart-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+        .chart-card .chart-desc {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-bottom: 12px;
         }
         .chart-container {
             position: relative;
-            height: 300px;
+            height: 260px;
             width: 100%;
         }
-        ::-webkit-scrollbar { width: 8px; }
-        ::-webkit-scrollbar-track { background: #1e1e2e; }
-        ::-webkit-scrollbar-thumb { background: #45475a; border-radius: 4px; }
-        ::-webkit-scrollbar-thumb:hover { background: #585b70; }
+        .chart-container.tall { height: 320px; }
+
+        /* Footer */
+        .footer {
+            text-align: center;
+            padding: 20px 0 12px;
+        }
+        .footer button {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 0.8rem;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+        .footer button:hover { color: var(--text-primary); }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #4e5058; }
+
+        .hidden { display: none !important; }
     </style>
 </head>
-<body class="min-h-screen p-4 md:p-8">
+<body>
 
-    <!-- Header -->
-    <header class="max-w-6xl mx-auto text-center mb-10 mt-6">
-        <h1 class="text-4xl md:text-5xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-indigo-400 to-cyan-400 mb-4">
-            Discord Chat Analyzer 📊
-        </h1>
-        <p class="text-gray-400 text-lg">Upload your DiscordChatExporter CSV to instantly generate advanced conversation insights.</p>
-    </header>
+    <div class="container">
 
-    <!-- Upload Section -->
-    <main class="max-w-6xl mx-auto">
-        <div id="upload-section" class="glass-panel p-10 text-center flex flex-col items-center justify-center border-dashed border-2 border-indigo-500/30 hover:border-indigo-400 transition-colors cursor-pointer rounded-2xl">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-16 w-16 text-indigo-400 mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+        <!-- Header -->
+        <div class="header">
+            <div>
+                <h1>Discord Chat Analyzer</h1>
+                <span class="subtitle">Local-only analysis of DiscordChatExporter CSV files</span>
+            </div>
+        </div>
+
+        <!-- Upload -->
+        <div id="upload-section" class="upload-area" onclick="document.getElementById('csv-upload').click()">
+            <svg class="icon" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M12 16V4m0 0l-4 4m4-4l4 4M4 18h16" />
             </svg>
-            <h2 class="text-2xl font-bold text-white mb-2">Select your Chat Data</h2>
-            <p class="text-gray-400 mb-6">Choose the .csv file you exported from DiscordChatExporter</p>
-            <label class="bg-gradient-to-r from-indigo-500 to-cyan-500 hover:from-indigo-600 hover:to-cyan-600 text-white font-bold py-3 px-8 rounded-full shadow-lg cursor-pointer transition-transform transform hover:scale-105">
-                Browse Files
-                <input type="file" id="csv-upload" accept=".csv" class="hidden" />
+            <h2 id="upload-title">Drop a .csv file here or click to browse</h2>
+            <p class="desc" id="upload-desc">Exported from <a href="https://github.com/Tyrrrz/DiscordChatExporter" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;" onclick="event.stopPropagation()">DiscordChatExporter</a></p>
+            <label class="upload-btn" onclick="event.stopPropagation()">
+                Choose file
+                <input type="file" id="csv-upload" accept=".csv" style="display:none" />
             </label>
-            
-            <div class="flex items-center justify-center space-x-2 mt-6">
-                <input type="checkbox" id="exclude-bots" class="w-4 h-4 accent-indigo-500 bg-gray-700 border-gray-600 cursor-pointer" checked>
-                <label for="exclude-bots" class="text-gray-300 text-sm cursor-pointer">Exclude bots (usernames containing #XXXX)</label>
+            <div class="upload-options" onclick="event.stopPropagation()">
+                <input type="checkbox" id="exclude-bots" checked>
+                <label for="exclude-bots">Exclude bots (names with #XXXX)</label>
             </div>
-
-            <p class="text-xs text-gray-500 mt-4">100% Private. Processed locally in your browser.</p>
+            <p class="upload-note">All processing happens in your browser. Nothing is uploaded.</p>
         </div>
 
-        <!-- Dashboard Section (Hidden until upload) -->
-        <div id="dashboard" class="hidden space-y-8">
-            
-            <!-- Key Stats Row 1 -->
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div class="glass-panel p-4 md:p-6 text-center">
-                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Total Messages</h3>
-                    <div id="stat-total" class="text-2xl md:text-4xl font-extrabold text-white">0</div>
+        <!-- Dashboard -->
+        <div id="dashboard" class="dashboard">
+
+            <!-- Overview Stats -->
+            <div class="section-title">Overview</div>
+            <div class="stats-grid" id="stats-overview"></div>
+
+            <!-- Per-User Breakdown -->
+            <div class="section-title">Per-User Breakdown</div>
+            <div class="user-table-wrap">
+                <table class="user-table" id="user-table">
+                    <thead><tr>
+                        <th>User</th>
+                        <th>Messages</th>
+                        <th>Share</th>
+                        <th>Avg Words</th>
+                        <th>Response Time</th>
+                        <th>Starts</th>
+                        <th>Media</th>
+                        <th>Emojis</th>
+                    </tr></thead>
+                    <tbody id="user-table-body"></tbody>
+                </table>
+            </div>
+
+            <!-- Charts -->
+            <div class="section-title">Charts</div>
+            <div class="charts-grid">
+                <div class="chart-card">
+                    <div class="chart-title">Message Distribution</div>
+                    <div class="chart-container"><canvas id="pieChart"></canvas></div>
                 </div>
-                <div class="glass-panel p-4 md:p-6 text-center">
-                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Top Sender</h3>
-                    <div id="stat-yapper" class="text-2xl md:text-4xl font-extrabold text-indigo-400">Loading</div>
+                <div class="chart-card">
+                    <div class="chart-title">Who Texts First?</div>
+                    <div class="chart-desc">After gaps longer than 8 hours</div>
+                    <div class="chart-container"><canvas id="startersChart"></canvas></div>
                 </div>
-                <div class="glass-panel p-4 md:p-6 text-center">
-                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Initiates Most Chats</h3>
-                    <div id="stat-starter" class="text-2xl md:text-4xl font-extrabold text-pink-400">Loading</div>
+
+                <div class="chart-card">
+                    <div class="chart-title">Double Texting Rate</div>
+                    <div class="chart-desc">Average consecutive messages before a reply</div>
+                    <div class="chart-container"><canvas id="doubleTextChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Response Time</div>
+                    <div class="chart-desc">Average reply time in minutes</div>
+                    <div class="chart-container"><canvas id="responseTimeChart"></canvas></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-title">Message Length</div>
+                    <div class="chart-desc">Average vs median word count per message</div>
+                    <div class="chart-container"><canvas id="msgLengthChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Media &amp; Links</div>
+                    <div class="chart-desc">Attachments and URLs shared</div>
+                    <div class="chart-container"><canvas id="mediaChart"></canvas></div>
+                </div>
+
+                <div class="chart-card">
+                    <div class="chart-title">Top Words</div>
+                    <div class="chart-container"><canvas id="wordsChart"></canvas></div>
+                </div>
+                <div class="chart-card">
+                    <div class="chart-title">Time of Day</div>
+                    <div class="chart-desc">Distribution across 4 time blocks</div>
+                    <div class="chart-container"><canvas id="timePeriodChart"></canvas></div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="chart-title">Activity by Day of Week</div>
+                    <div class="chart-container"><canvas id="dayOfWeekChart"></canvas></div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="chart-title">Activity Over Time</div>
+                    <div class="chart-container tall"><canvas id="timelineChart"></canvas></div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="chart-title">Hourly Activity</div>
+                    <div class="chart-container"><canvas id="timeOfDayChart"></canvas></div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="chart-title">Top Custom Emojis</div>
+                    <div class="chart-container"><canvas id="emojiChart"></canvas></div>
                 </div>
             </div>
 
-            <!-- Key Stats Row 2 -->
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-4">
-                <div class="glass-panel p-4 md:p-6 text-center">
-                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Busiest Day Ever</h3>
-                    <div id="stat-busiest-day" class="text-lg md:text-2xl font-extrabold text-cyan-400">Loading</div>
-                    <div id="stat-busiest-count" class="text-sm text-gray-400 mt-1">0 msgs</div>
-                </div>
-                <div class="glass-panel p-4 md:p-6 text-center">
-                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Daily Average</h3>
-                    <div id="stat-daily-avg" class="text-2xl md:text-4xl font-extrabold text-yellow-400">0</div>
-                </div>
-                <div class="glass-panel p-4 md:p-6 text-center">
-                    <h3 class="text-gray-400 text-xs md:text-sm uppercase tracking-wider font-semibold mb-2">Longest Streak</h3>
-                    <div id="stat-streak" class="text-2xl md:text-4xl font-extrabold text-green-400">0 Days</div>
-                </div>
+            <div class="footer">
+                <button onclick="location.reload()">Analyze a different file</button>
             </div>
-
-            <!-- Charts Grid 1 -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="glass-panel p-6">
-                    <h3 class="text-xl font-bold text-white mb-4 text-center">Message Distribution</h3>
-                    <div class="chart-container flex justify-center">
-                        <canvas id="pieChart"></canvas>
-                    </div>
-                </div>
-                <div class="glass-panel p-6">
-                    <h3 class="text-xl font-bold text-white mb-4 text-center">Who Texts First? (>8h gaps)</h3>
-                    <div class="chart-container flex justify-center">
-                        <canvas id="startersChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Charts Grid 2 (Length and Response Time) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="glass-panel p-6">
-                    <h3 class="text-xl font-bold text-white mb-4 text-center">Double Texting Rate</h3>
-                    <p class="text-xs text-center text-gray-400 mb-2">Avg. consecutive messages sent before a reply.</p>
-                    <div class="chart-container">
-                        <canvas id="doubleTextChart"></canvas>
-                    </div>
-                </div>
-                <div class="glass-panel p-6">
-                    <h3 class="text-xl font-bold text-white mb-4 text-center">Average Response Time (Minutes)</h3>
-                    <p class="text-xs text-center text-gray-400 mb-2">How fast a user replies to the other person.</p>
-                    <div class="chart-container">
-                        <canvas id="responseTimeChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Charts Grid 3 (Media and Average Length) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="glass-panel p-6">
-                    <h3 class="text-xl font-bold text-white mb-4 text-center">Avg vs Median Message Length</h3>
-                    <p class="text-xs text-center text-gray-400 mb-2">Median ignores abnormally long paragraphs to find the true middle.</p>
-                    <div class="chart-container">
-                        <canvas id="msgLengthChart"></canvas>
-                    </div>
-                </div>
-                <div class="glass-panel p-6">
-                    <h3 class="text-xl font-bold text-white mb-4 text-center">Media & Links Shared</h3>
-                    <p class="text-xs text-center text-gray-400 mb-2">Attachments, Images, and URLs sent.</p>
-                    <div class="chart-container flex justify-center">
-                        <canvas id="mediaChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Charts Grid 4 (Words and Periods) -->
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="glass-panel p-6">
-                    <h3 class="text-xl font-bold text-white mb-4 text-center">Most Frequent Words</h3>
-                    <div class="chart-container">
-                        <canvas id="wordsChart"></canvas>
-                    </div>
-                </div>
-                <div class="glass-panel p-6">
-                    <h3 class="text-xl font-bold text-white mb-4 text-center">Messages by Time Period</h3>
-                    <div class="chart-container flex justify-center">
-                        <canvas id="timePeriodChart"></canvas>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Time Charts -->
-            <div class="glass-panel p-6">
-                <h3 class="text-xl font-bold text-white mb-4 text-center">Most Active Days of the Week</h3>
-                <div class="chart-container">
-                    <canvas id="dayOfWeekChart"></canvas>
-                </div>
-            </div>
-
-            <div class="glass-panel p-6">
-                <h3 class="text-xl font-bold text-white mb-4 text-center">Activity Over Time</h3>
-                <div class="chart-container" style="height: 350px;">
-                    <canvas id="timelineChart"></canvas>
-                </div>
-            </div>
-
-            <div class="glass-panel p-6">
-                <h3 class="text-xl font-bold text-white mb-4 text-center">Activity by Time of Day</h3>
-                <div class="chart-container" style="height: 300px;">
-                    <canvas id="timeOfDayChart"></canvas>
-                </div>
-            </div>
-
-            <!-- Reset Button -->
-            <div class="text-center mt-8 pb-8">
-                <button onclick="location.reload()" class="text-gray-400 hover:text-white underline transition-colors">
-                    Upload a different file
-                </button>
-            </div>
-
         </div>
-    </main>
+
+    </div>
 
     <script>
-        let charts = {};
-
-        const colors = [
-            '#89b4fa', // Blue
-            '#cba6f7', // Mauve
-            '#a6e3a1', // Green
-            '#f38ba8', // Red
-            '#f9e2af', // Yellow
-            '#94e2d5', // Teal
-        ];
+        /* ── Drag & Drop ── */
+        const uploadEl = document.getElementById('upload-section');
+        uploadEl.addEventListener('dragover', e => { e.preventDefault(); uploadEl.classList.add('dragover'); });
+        uploadEl.addEventListener('dragleave', () => uploadEl.classList.remove('dragover'));
+        uploadEl.addEventListener('drop', e => {
+            e.preventDefault();
+            uploadEl.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file && file.name.endsWith('.csv')) handleFile(file);
+        });
 
         document.getElementById('csv-upload').addEventListener('change', function(e) {
             const file = e.target.files[0];
-            if (!file) return;
+            if (file) handleFile(file);
+        });
 
-            document.querySelector('#upload-section h2').innerText = "Analyzing Messages...";
-            document.querySelector('#upload-section p').innerText = "Running advanced metrics, please wait...";
+        function handleFile(file) {
+            document.getElementById('upload-title').textContent = 'Processing…';
+            document.getElementById('upload-desc').textContent = file.name;
 
             Papa.parse(file, {
                 header: true,
                 skipEmptyLines: true,
-                complete: function(results) {
-                    processData(results.data);
-                },
-                error: function(err) {
-                    alert("Error parsing CSV. Please ensure it's a valid DiscordChatExporter export.");
+                complete: results => processData(results.data),
+                error: () => {
+                    alert('Could not parse that file. Make sure it\'s a valid DiscordChatExporter CSV.');
                     location.reload();
                 }
             });
-        });
-
-        function getMedian(arr) {
-            if (arr.length === 0) return 0;
-            const sorted = [...arr].sort((a, b) => a - b);
-            const middle = Math.floor(sorted.length / 2);
-            if (sorted.length % 2 === 0) {
-                return (sorted[middle - 1] + sorted[middle]) / 2;
-            }
-            return sorted[middle];
         }
 
+        /* ── Helpers ── */
+        let charts = {};
+
+        const palette = [
+            '#5865f2', // blurple
+            '#57f287', // green
+            '#fee75c', // yellow
+            '#ed4245', // red
+            '#eb459e', // fuchsia
+            '#5bc0eb', // sky
+        ];
+
+        function getMedian(arr) {
+            if (!arr.length) return 0;
+            const s = [...arr].sort((a, b) => a - b);
+            const m = Math.floor(s.length / 2);
+            return s.length % 2 === 0 ? (s[m - 1] + s[m]) / 2 : s[m];
+        }
+
+        function fmtNum(n) { return Number(n).toLocaleString(); }
+
+        /* ── Chart defaults ── */
+        Chart.defaults.font.family = "'Inter', sans-serif";
+        Chart.defaults.color = '#b5bac1';
+
+        /* ── Process Data ── */
         function processData(data) {
             const excludeBots = document.getElementById('exclude-bots').checked;
             const botRegex = /#\d{4}/;
@@ -257,31 +494,46 @@
                 if (excludeBots && botRegex.test(row.Author)) return false;
                 return true;
             }).sort((a, b) => new Date(a.Date) - new Date(b.Date));
-            
+
             if (validData.length === 0) {
-                alert("No valid messages found. Check your CSV file.");
+                alert('No valid messages found. Check your CSV file.');
                 location.reload();
                 return;
             }
 
+            // Identify top 6 authors
             const globalAuthorCounts = {};
             validData.forEach(r => {
                 globalAuthorCounts[r.Author] = (globalAuthorCounts[r.Author] || 0) + 1;
             });
             const topAuthors = Object.entries(globalAuthorCounts)
                 .sort((a, b) => b[1] - a[1])
-                .slice(0, 5)
+                .slice(0, 6)
                 .map(item => item[0]);
 
-            const authorStats = {}; 
-            // Added media count and consecutive streak arrays
-            topAuthors.forEach(a => authorStats[a] = { msgs: 0, wordCounts: [], responseTimes: [], starters: 0, media: 0, consecutiveStreaks: [] });
+            const authorStats = {};
+            topAuthors.forEach(a => authorStats[a] = {
+                msgs: 0, wordCounts: [], responseTimes: [], starters: 0,
+                media: 0, consecutiveStreaks: [], emojis: 0, stickers: 0,
+                voiceMessages: 0, calls: 0, callMinutes: 0, reactions: 0,
+                totalWords: 0
+            });
 
             const hourCounts = new Array(24).fill(0);
             const timePeriodCounts = { morning: 0, afternoon: 0, evening: 0, night: 0 };
             const dateCounts = {};
             const dayOfWeekCounts = new Array(7).fill(0);
             const wordCounts = {};
+            const customEmojiCounts = {};
+
+            // Global extras
+            let totalEmojis = 0;
+            let totalStickers = 0;
+            let totalVoiceMessages = 0;
+            let totalCalls = 0;
+            let totalCallMinutes = 0;
+            let totalWords = 0;
+            let totalMedia = 0;
 
             const stopWords = new Set([
                 "the","and","to","i","a","of","it","in","you","is","for","that","my","on","me","we","this","with",
@@ -292,20 +544,58 @@
                 "png","jpg","jpeg","gif","mp4","mov","webp","discordapp","cdn"
             ]);
 
+            const customEmojiRegex = /<:[^:]+:\d+>/g;
+            const stickerRegex = /\[([^\]]+)\]\(https:\/\/media\.discordapp\.net\/stickers\//;
+            const callRegex = /^Started a call that lasted (\d+) minutes?\.$/;
+
             let lastMsgTime = null;
             let lastAuthor = null;
             let currentStreakCounter = 0;
 
             validData.forEach(row => {
                 const author = row.Author;
-                if (!topAuthors.includes(author)) return; 
+                if (!topAuthors.includes(author)) return;
 
                 const dateObj = new Date(row.Date);
                 if (isNaN(dateObj)) return;
 
                 const content = row.Content || "";
+                const attachments = row.Attachments || "";
 
-                // --- Consecutive Messages (Double Texting) ---
+                // ── Calls ──
+                const callMatch = content.match(callRegex);
+                if (callMatch) {
+                    const mins = parseInt(callMatch[1], 10);
+                    authorStats[author].calls++;
+                    authorStats[author].callMinutes += mins;
+                    totalCalls++;
+                    totalCallMinutes += mins;
+                }
+
+                // ── Voice messages ──
+                if (attachments.includes('voice-message.ogg')) {
+                    authorStats[author].voiceMessages++;
+                    totalVoiceMessages++;
+                }
+
+                // ── Stickers ──
+                if (stickerRegex.test(content)) {
+                    authorStats[author].stickers++;
+                    totalStickers++;
+                }
+
+                // ── Custom emojis ──
+                const emojiMatches = content.match(customEmojiRegex);
+                if (emojiMatches) {
+                    authorStats[author].emojis += emojiMatches.length;
+                    totalEmojis += emojiMatches.length;
+                    emojiMatches.forEach(e => {
+                        const name = e.split(':')[1];
+                        customEmojiCounts[name] = (customEmojiCounts[name] || 0) + 1;
+                    });
+                }
+
+                // ── Consecutive Messages ──
                 if (author === lastAuthor) {
                     currentStreakCounter++;
                 } else {
@@ -315,12 +605,11 @@
                     currentStreakCounter = 1;
                 }
 
-                // --- Timestamps and Advanced Metrics ---
+                // ── Timestamps / Starters / Response Time ──
                 if (lastMsgTime) {
                     const diffMs = dateObj - lastMsgTime;
                     const diffHours = diffMs / (1000 * 60 * 60);
                     const diffMins = diffMs / (1000 * 60);
-
                     if (diffHours > 8) {
                         authorStats[author].starters++;
                     } else if (lastAuthor !== author && diffHours < 2) {
@@ -329,22 +618,22 @@
                 } else {
                     authorStats[author].starters++;
                 }
-                
+
                 lastMsgTime = dateObj;
                 lastAuthor = author;
 
-                // --- Media & Links ---
-                if ((row.Attachments && row.Attachments.trim() !== "") || content.includes('http://') || content.includes('https://')) {
+                // ── Media & Links ──
+                if ((attachments.trim() !== "" && !attachments.includes('voice-message.ogg')) || content.includes('http://') || content.includes('https://')) {
                     authorStats[author].media++;
+                    totalMedia++;
                 }
 
-                // --- Standard Counting ---
+                // ── Counting ──
                 authorStats[author].msgs++;
                 const hour = dateObj.getHours();
                 hourCounts[hour]++;
                 dayOfWeekCounts[dateObj.getDay()]++;
 
-                // Time Periods
                 if (hour >= 6 && hour < 12) timePeriodCounts.morning++;
                 else if (hour >= 12 && hour < 18) timePeriodCounts.afternoon++;
                 else if (hour >= 18 && hour <= 23) timePeriodCounts.evening++;
@@ -353,11 +642,14 @@
                 const dateStr = dateObj.toISOString().split('T')[0];
                 dateCounts[dateStr] = (dateCounts[dateStr] || 0) + 1;
 
-                // --- Word Counts & Averages ---
+                // ── Words ──
                 const rawWords = content.trim().split(/\s+/).filter(w => w.length > 0);
-                authorStats[author].wordCounts.push(rawWords.length);
+                const wc = rawWords.length;
+                authorStats[author].wordCounts.push(wc);
+                authorStats[author].totalWords += wc;
+                totalWords += wc;
 
-                let cleanContent = content.replace(/https?:\/\/[^\s]+/g, '');
+                let cleanContent = content.replace(/https?:\/\/[^\s]+/g, '').replace(/<:[^:]+:\d+>/g, '');
                 const words = cleanContent.toLowerCase().match(/\b[a-z']+\b/g);
                 if (words) {
                     words.forEach(w => {
@@ -368,75 +660,119 @@
                 }
             });
 
-            // Push the very last consecutive streak
+            // Final streak
             if (lastAuthor && authorStats[lastAuthor]) {
                 authorStats[lastAuthor].consecutiveStreaks.push(currentStreakCounter);
             }
 
-            // Calculate Longest Streak and Busiest Day
+            // ── Streak + Busiest Day ──
             const sortedDates = Object.keys(dateCounts).sort();
-            let maxStreak = 0;
-            let currentStreak = 0;
-            let busiestDay = { date: "", count: 0 };
+            let maxStreak = 0, currentStreak = 0;
+            let busiestDay = { date: "—", count: 0 };
 
             for (let i = 0; i < sortedDates.length; i++) {
-                // Busiest Day Check
                 if (dateCounts[sortedDates[i]] > busiestDay.count) {
                     busiestDay = { date: sortedDates[i], count: dateCounts[sortedDates[i]] };
                 }
-
-                // Streak Check
-                if (i === 0) {
-                    currentStreak = 1;
-                } else {
-                    const prevDate = new Date(sortedDates[i-1]);
-                    const currDate = new Date(sortedDates[i]);
-                    const diffDays = (currDate - prevDate) / (1000 * 60 * 60 * 24);
-                    
-                    if (Math.round(diffDays) === 1) {
-                        currentStreak++;
-                    } else {
-                        if (currentStreak > maxStreak) maxStreak = currentStreak;
-                        currentStreak = 1;
-                    }
+                if (i === 0) { currentStreak = 1; }
+                else {
+                    const diff = (new Date(sortedDates[i]) - new Date(sortedDates[i-1])) / (86400000);
+                    if (Math.round(diff) === 1) currentStreak++;
+                    else { if (currentStreak > maxStreak) maxStreak = currentStreak; currentStreak = 1; }
                 }
             }
             if (currentStreak > maxStreak) maxStreak = currentStreak;
 
-            // UI Updates
+            // ── Conversations (>8h gaps) ──
+            let totalConversations = 1;
+            let prevTime = null;
+            validData.forEach(row => {
+                const d = new Date(row.Date);
+                if (isNaN(d)) return;
+                if (prevTime && (d - prevTime) > 8 * 3600000) totalConversations++;
+                prevTime = d;
+            });
+
+            // ── Date range ──
+            const firstDate = sortedDates[0] || "—";
+            const lastDate = sortedDates[sortedDates.length - 1] || "—";
+
+            // ── Show dashboard ──
             document.getElementById('upload-section').classList.add('hidden');
-            document.getElementById('dashboard').classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('visible');
 
             let totalProcessedMsgs = 0;
-            let topSender = { name: "", count: 0 };
-            let topStarter = { name: "", count: 0 };
+            let topSender = { name: "—", count: 0 };
+            let topStarter = { name: "—", count: 0 };
 
             Object.keys(authorStats).forEach(author => {
                 totalProcessedMsgs += authorStats[author].msgs;
-                if (authorStats[author].msgs > topSender.count) {
-                    topSender = { name: author, count: authorStats[author].msgs };
-                }
-                if (authorStats[author].starters > topStarter.count) {
-                    topStarter = { name: author, count: authorStats[author].starters };
-                }
+                if (authorStats[author].msgs > topSender.count) topSender = { name: author, count: authorStats[author].msgs };
+                if (authorStats[author].starters > topStarter.count) topStarter = { name: author, count: authorStats[author].starters };
             });
 
-            // Daily Average
             const totalDays = sortedDates.length > 0 ? sortedDates.length : 1;
             const dailyAvg = Math.round(totalProcessedMsgs / totalDays);
 
-            document.getElementById('stat-total').innerText = totalProcessedMsgs.toLocaleString();
-            document.getElementById('stat-yapper').innerText = topSender.name;
-            document.getElementById('stat-streak').innerText = `${maxStreak} Days`;
-            document.getElementById('stat-starter').innerText = topStarter.name;
-            document.getElementById('stat-daily-avg').innerText = dailyAvg.toLocaleString();
-            document.getElementById('stat-busiest-day').innerText = busiestDay.date;
-            document.getElementById('stat-busiest-count').innerText = `${busiestDay.count.toLocaleString()} msgs`;
+            // ── Build stat cards ──
+            const statsData = [
+                { label: 'Total Messages', value: fmtNum(totalProcessedMsgs) },
+                { label: 'Total Words', value: fmtNum(totalWords) },
+                { label: 'Active Days', value: fmtNum(sortedDates.length) },
+                { label: 'Daily Average', value: fmtNum(dailyAvg) + ' msgs' },
+                { label: 'Conversations', value: fmtNum(totalConversations) },
+                { label: 'Longest Streak', value: maxStreak + ' days' },
+                { label: 'Top Sender', value: topSender.name, sub: fmtNum(topSender.count) + ' msgs' },
+                { label: 'Starts Most Chats', value: topStarter.name, sub: fmtNum(topStarter.count) + ' times' },
+                { label: 'Busiest Day', value: busiestDay.date, sub: fmtNum(busiestDay.count) + ' msgs' },
+                { label: 'Media & Links', value: fmtNum(totalMedia) },
+                { label: 'Voice Messages', value: fmtNum(totalVoiceMessages) },
+                { label: 'Stickers Sent', value: fmtNum(totalStickers) },
+                { label: 'Custom Emojis', value: fmtNum(totalEmojis) },
+                { label: 'Calls', value: fmtNum(totalCalls), sub: totalCallMinutes > 0 ? fmtNum(totalCallMinutes) + ' min total' : '' },
+                { label: 'Date Range', value: firstDate, sub: 'to ' + lastDate },
+            ];
 
-            // Render Charts
+            const statsGrid = document.getElementById('stats-overview');
+            statsGrid.innerHTML = statsData.map(s =>
+                `<div class="stat-card">
+                    <div class="label">${s.label}</div>
+                    <div class="value" title="${s.value}">${s.value}</div>
+                    ${s.sub ? `<div class="sub">${s.sub}</div>` : ''}
+                </div>`
+            ).join('');
+
+            // ── Build per-user table ──
+            const tbody = document.getElementById('user-table-body');
+            const maxMsgs = topSender.count;
+            tbody.innerHTML = Object.entries(authorStats)
+                .sort((a, b) => b[1].msgs - a[1].msgs)
+                .map(([name, s]) => {
+                    const pct = totalProcessedMsgs > 0 ? ((s.msgs / totalProcessedMsgs) * 100).toFixed(1) : '0';
+                    const avgWords = s.wordCounts.length > 0 ? (s.totalWords / s.wordCounts.length).toFixed(1) : '0';
+                    const avgResp = s.responseTimes.length > 0
+                        ? (s.responseTimes.reduce((a,b) => a+b, 0) / s.responseTimes.length).toFixed(1) + ' min'
+                        : '—';
+                    const barW = maxMsgs > 0 ? (s.msgs / maxMsgs * 100) : 0;
+                    return `<tr>
+                        <td class="user-name">${name}</td>
+                        <td>${fmtNum(s.msgs)}</td>
+                        <td class="bar-cell">
+                            <span class="user-bar" style="width:${barW}%"></span>
+                            <span style="font-size:0.72rem;color:var(--text-muted);margin-left:4px">${pct}%</span>
+                        </td>
+                        <td>${avgWords}</td>
+                        <td>${avgResp}</td>
+                        <td>${fmtNum(s.starters)}</td>
+                        <td>${fmtNum(s.media)}</td>
+                        <td>${fmtNum(s.emojis)}</td>
+                    </tr>`;
+                }).join('');
+
+            // ── Render Charts ──
             renderPieChart(authorStats, 'pieChart', 'msgs');
             renderPieChart(authorStats, 'startersChart', 'starters');
-            renderPieChart(authorStats, 'mediaChart', 'media'); // Reused Doughnut for Media
+            renderPieChart(authorStats, 'mediaChart', 'media');
             renderMsgLengthChart(authorStats);
             renderResponseTimeChart(authorStats);
             renderDoubleTextChart(authorStats);
@@ -445,260 +781,233 @@
             renderTimelineChart(dateCounts);
             renderDayOfWeekChart(dayOfWeekCounts);
             renderTimeOfDayChart(hourCounts);
+            renderEmojiChart(customEmojiCounts);
         }
 
-        function destroyChart(id) {
-            if (charts[id]) charts[id].destroy();
+        function destroyChart(id) { if (charts[id]) charts[id].destroy(); }
+
+        /* ── Shared ── */
+        const gridColor = 'rgba(255,255,255,0.06)';
+        const tickColor = '#949ba4';
+
+        function barOpts(extra = {}) {
+            return {
+                responsive: true, maintainAspectRatio: false,
+                plugins: { legend: { display: false } },
+                scales: {
+                    x: { grid: { display: false }, ticks: { color: tickColor } },
+                    y: { grid: { color: gridColor }, ticks: { color: tickColor } }
+                },
+                ...extra
+            };
         }
 
-        // --- CHART: Generic Doughnut Chart for Authors ---
+        /* ── Charts ── */
         function renderPieChart(authorStats, canvasId, dataKey) {
             destroyChart(canvasId);
             const ctx = document.getElementById(canvasId).getContext('2d');
-            
             const labels = Object.keys(authorStats).filter(a => authorStats[a][dataKey] > 0);
             const data = labels.map(a => authorStats[a][dataKey]);
-
             charts[canvasId] = new Chart(ctx, {
                 type: 'doughnut',
                 data: {
-                    labels: labels,
-                    datasets: [{
-                        data: data,
-                        backgroundColor: colors.slice(0, labels.length),
-                        borderColor: '#1e1e2e',
-                        borderWidth: 4,
-                        hoverOffset: 10
-                    }]
+                    labels,
+                    datasets: [{ data, backgroundColor: palette.slice(0, labels.length), borderColor: '#2b2d31', borderWidth: 3, hoverOffset: 6 }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { color: '#cdd6f4', font: {family: 'Inter'} } } }
+                    plugins: { legend: { position: 'bottom', labels: { color: tickColor, padding: 12, font: { size: 11 } } } }
                 }
             });
         }
 
-        // --- CHART: Double Texting Rate ---
         function renderDoubleTextChart(authorStats) {
             destroyChart('doubleTextChart');
             const ctx = document.getElementById('doubleTextChart').getContext('2d');
-            
             const labels = Object.keys(authorStats).filter(a => authorStats[a].consecutiveStreaks.length > 0);
             const data = labels.map(a => {
                 const arr = authorStats[a].consecutiveStreaks;
-                return (arr.reduce((sum, val) => sum + val, 0) / arr.length).toFixed(2);
+                return (arr.reduce((s, v) => s + v, 0) / arr.length).toFixed(2);
             });
-
             charts['doubleTextChart'] = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Avg. Consecutive Messages',
-                        data: data,
-                        backgroundColor: '#89b4fa',
-                        borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#a6adc8' } },
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
-                    }
-                }
+                data: { labels, datasets: [{ label: 'Avg consecutive', data, backgroundColor: palette[0], borderRadius: 3 }] },
+                options: barOpts()
             });
         }
 
-        // --- CHART: Time Periods (Polar Area) ---
         function renderTimePeriodChart(timePeriodCounts) {
             destroyChart('timePeriodChart');
             const ctx = document.getElementById('timePeriodChart').getContext('2d');
-            
-            const labels = ['Night Owl (12AM-6AM)', 'Morning (6AM-12PM)', 'Afternoon (12PM-6PM)', 'Evening (6PM-12AM)'];
+            const labels = ['Night (12–6 AM)', 'Morning (6 AM–12 PM)', 'Afternoon (12–6 PM)', 'Evening (6 PM–12 AM)'];
             const data = [timePeriodCounts.night, timePeriodCounts.morning, timePeriodCounts.afternoon, timePeriodCounts.evening];
-            // Match custom colors to vibe (Dark Blue, Yellow, Orange/Green, Purple)
-            const periodColors = ['#89b4fa', '#f9e2af', '#a6e3a1', '#cba6f7'];
-
             charts['timePeriodChart'] = new Chart(ctx, {
                 type: 'polarArea',
                 data: {
-                    labels: labels,
-                    datasets: [{
-                        data: data,
-                        backgroundColor: periodColors.map(c => c + 'AA'), // Add transparency
-                        borderColor: '#1e1e2e',
-                        borderWidth: 2
-                    }]
+                    labels,
+                    datasets: [{ data, backgroundColor: palette.slice(0, 4).map(c => c + 'aa'), borderColor: '#2b2d31', borderWidth: 2 }]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { position: 'bottom', labels: { color: '#cdd6f4', font: {family: 'Inter'} } } },
-                    scales: { r: { ticks: { display: false }, grid: { color: 'rgba(255,255,255,0.1)' } } }
+                    plugins: { legend: { position: 'bottom', labels: { color: tickColor, font: { size: 11 }, padding: 10 } } },
+                    scales: { r: { ticks: { display: false }, grid: { color: gridColor } } }
                 }
             });
         }
 
-        // --- CHART: Avg vs Median Length ---
         function renderMsgLengthChart(authorStats) {
             destroyChart('msgLengthChart');
             const ctx = document.getElementById('msgLengthChart').getContext('2d');
-            
             const labels = Object.keys(authorStats).filter(a => authorStats[a].msgs > 0);
-            
             const avgData = labels.map(a => {
                 const arr = authorStats[a].wordCounts;
-                if (arr.length === 0) return 0;
-                return (arr.reduce((sum, val) => sum + val, 0) / arr.length).toFixed(1);
+                return arr.length ? (arr.reduce((s, v) => s + v, 0) / arr.length).toFixed(1) : 0;
             });
-
             const medianData = labels.map(a => getMedian(authorStats[a].wordCounts));
-
             charts['msgLengthChart'] = new Chart(ctx, {
                 type: 'bar',
                 data: {
-                    labels: labels,
+                    labels,
                     datasets: [
-                        { label: 'Average Words', data: avgData, backgroundColor: '#89b4fa', borderRadius: 4 },
-                        { label: 'Median Words', data: medianData, backgroundColor: '#cba6f7', borderRadius: 4 }
+                        { label: 'Average', data: avgData, backgroundColor: palette[0], borderRadius: 3 },
+                        { label: 'Median', data: medianData, backgroundColor: palette[4], borderRadius: 3 }
                     ]
                 },
                 options: {
                     responsive: true, maintainAspectRatio: false,
-                    plugins: { legend: { labels: { color: '#cdd6f4' } } },
+                    plugins: { legend: { labels: { color: tickColor, font: { size: 11 } } } },
                     scales: {
-                        x: { grid: { display: false }, ticks: { color: '#a6adc8' } },
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
+                        x: { grid: { display: false }, ticks: { color: tickColor } },
+                        y: { grid: { color: gridColor }, ticks: { color: tickColor } }
                     }
                 }
             });
         }
 
-        // --- CHART: Response Time ---
         function renderResponseTimeChart(authorStats) {
             destroyChart('responseTimeChart');
             const ctx = document.getElementById('responseTimeChart').getContext('2d');
-            
             const labels = Object.keys(authorStats).filter(a => authorStats[a].responseTimes.length > 0);
             const data = labels.map(a => {
                 const arr = authorStats[a].responseTimes;
-                if (arr.length === 0) return 0;
-                return (arr.reduce((sum, val) => sum + val, 0) / arr.length).toFixed(1);
+                return arr.length ? (arr.reduce((s, v) => s + v, 0) / arr.length).toFixed(1) : 0;
             });
-
             charts['responseTimeChart'] = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'Avg Response Time (Mins)', data: data, backgroundColor: '#f38ba8', borderRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#a6adc8' } },
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
-                    }
-                }
+                data: { labels, datasets: [{ label: 'Minutes', data, backgroundColor: palette[3], borderRadius: 3 }] },
+                options: barOpts()
             });
         }
 
-        // --- CHART: Top Words ---
         function renderWordsChart(wordCounts) {
             destroyChart('wordsChart');
             const ctx = document.getElementById('wordsChart').getContext('2d');
-            const sortedWords = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
-            
+            const sorted = Object.entries(wordCounts).sort((a, b) => b[1] - a[1]).slice(0, 10);
             charts['wordsChart'] = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: sortedWords.map(item => item[0]),
-                    datasets: [{ data: sortedWords.map(item => item[1]), backgroundColor: '#a6e3a1', borderRadius: 6 }]
-                },
+                data: { labels: sorted.map(i => i[0]), datasets: [{ data: sorted.map(i => i[1]), backgroundColor: palette[1], borderRadius: 3 }] },
                 options: {
-                    indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
                     scales: {
-                        x: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } },
-                        y: { grid: { display: false }, ticks: { color: '#cdd6f4', font: {weight: 'bold'} } }
+                        x: { grid: { color: gridColor }, ticks: { color: tickColor } },
+                        y: { grid: { display: false }, ticks: { color: '#f2f3f5', font: { weight: '600', size: 11 } } }
                     }
                 }
             });
         }
 
-        // --- CHART: Timeline ---
+        function renderEmojiChart(emojiCounts) {
+            destroyChart('emojiChart');
+            const ctx = document.getElementById('emojiChart').getContext('2d');
+            const sorted = Object.entries(emojiCounts).sort((a, b) => b[1] - a[1]).slice(0, 12);
+            if (sorted.length === 0) {
+                // Hide the chart card if no emojis
+                ctx.canvas.parentElement.parentElement.style.display = 'none';
+                return;
+            }
+            charts['emojiChart'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: sorted.map(i => ':' + i[0] + ':'),
+                    datasets: [{ data: sorted.map(i => i[1]), backgroundColor: palette[4], borderRadius: 3 }]
+                },
+                options: {
+                    indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { grid: { color: gridColor }, ticks: { color: tickColor } },
+                        y: { grid: { display: false }, ticks: { color: '#f2f3f5', font: { weight: '600', size: 11 } } }
+                    }
+                }
+            });
+        }
+
         function renderTimelineChart(dateCounts) {
             destroyChart('timelineChart');
             const ctx = document.getElementById('timelineChart').getContext('2d');
-            const sortedDates = Object.keys(dateCounts).sort();
-            const data = sortedDates.map(date => dateCounts[date]);
-
+            const sorted = Object.keys(dateCounts).sort();
+            const data = sorted.map(d => dateCounts[d]);
             charts['timelineChart'] = new Chart(ctx, {
                 type: 'line',
                 data: {
-                    labels: sortedDates,
+                    labels: sorted,
                     datasets: [{
-                        label: 'Messages', data: data, borderColor: '#89b4fa', backgroundColor: 'rgba(137, 180, 250, 0.2)',
-                        borderWidth: 2, fill: true, tension: 0.3, pointRadius: data.length > 30 ? 0 : 3
+                        label: 'Messages', data,
+                        borderColor: palette[0], backgroundColor: 'rgba(88,101,242,0.15)',
+                        borderWidth: 1.5, fill: true, tension: 0.3, pointRadius: data.length > 30 ? 0 : 2
                     }]
                 },
                 options: {
-                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
                     scales: {
-                        x: { grid: { display: false }, ticks: { color: '#a6adc8', maxTicksLimit: 10 } },
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
+                        x: { grid: { display: false }, ticks: { color: tickColor, maxTicksLimit: 10 } },
+                        y: { grid: { color: gridColor }, ticks: { color: tickColor } }
                     },
                     interaction: { mode: 'nearest', axis: 'x', intersect: false }
                 }
             });
         }
 
-        // --- CHART: Day of the Week ---
         function renderDayOfWeekChart(dayOfWeekCounts) {
             destroyChart('dayOfWeekChart');
             const ctx = document.getElementById('dayOfWeekChart').getContext('2d');
-            const labels = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-
+            const labels = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
             charts['dayOfWeekChart'] = new Chart(ctx, {
                 type: 'radar',
                 data: {
-                    labels: labels,
+                    labels,
                     datasets: [{
-                        label: 'Messages', data: dayOfWeekCounts, backgroundColor: 'rgba(203, 166, 247, 0.4)',
-                        borderColor: '#cba6f7', pointBackgroundColor: '#f5c2e7', borderWidth: 2
+                        label: 'Messages', data: dayOfWeekCounts,
+                        backgroundColor: 'rgba(88,101,242,0.25)', borderColor: palette[0],
+                        pointBackgroundColor: palette[4], borderWidth: 1.5
                     }]
                 },
                 options: {
-                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
                     scales: {
                         r: {
-                            angleLines: { color: 'rgba(255, 255, 255, 0.1)' }, grid: { color: 'rgba(255, 255, 255, 0.1)' },
-                            pointLabels: { color: '#cdd6f4', font: { size: 12, family: 'Inter' } }, ticks: { display: false }
+                            angleLines: { color: gridColor }, grid: { color: gridColor },
+                            pointLabels: { color: '#f2f3f5', font: { size: 12 } }, ticks: { display: false }
                         }
                     }
                 }
             });
         }
 
-        // --- CHART: Time of Day ---
         function renderTimeOfDayChart(hourCounts) {
             destroyChart('timeOfDayChart');
             const ctx = document.getElementById('timeOfDayChart').getContext('2d');
-            const labels = ['12 AM','1 AM','2 AM','3 AM','4 AM','5 AM','6 AM','7 AM','8 AM','9 AM','10 AM','11 AM','12 PM','1 PM','2 PM','3 PM','4 PM','5 PM','6 PM','7 PM','8 PM','9 PM','10 PM','11 PM'];
-
+            const labels = ['12a','1a','2a','3a','4a','5a','6a','7a','8a','9a','10a','11a','12p','1p','2p','3p','4p','5p','6p','7p','8p','9p','10p','11p'];
             charts['timeOfDayChart'] = new Chart(ctx, {
                 type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{ label: 'Messages', data: hourCounts, backgroundColor: '#94e2d5', borderRadius: 4 }]
-                },
-                options: {
-                    responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } },
-                    scales: {
-                        x: { grid: { display: false }, ticks: { color: '#a6adc8', maxTicksLimit: 12 } },
-                        y: { grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: '#a6adc8' } }
-                    }
-                }
+                data: { labels, datasets: [{ label: 'Messages', data: hourCounts, backgroundColor: palette[5], borderRadius: 2 }] },
+                options: barOpts({ scales: {
+                    x: { grid: { display: false }, ticks: { color: tickColor, maxTicksLimit: 12 } },
+                    y: { grid: { color: gridColor }, ticks: { color: tickColor } }
+                }})
             });
         }
     </script>
