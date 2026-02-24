@@ -14,6 +14,7 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://html2canvas.hertzen.com/dist/html2canvas.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
@@ -27,8 +28,13 @@
                 <h1>Discord Chat Analyzer</h1>
                 <span class="subtitle">Local-only analysis of DiscordChatExporter CSV files</span>
             </div>
-            <div class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Toggle Theme">
-                <!-- icon injected by JS -->
+            <div class="header-actions" style="display: flex; gap: 12px; align-items: center;">
+                <button id="export-btn" class="hidden" onclick="exportDashboard()" title="Export Dashboard as PNG" style="background: var(--accent); color: white; border: none; padding: 8px 12px; border-radius: 6px; cursor: pointer; font-weight: 500; font-family: inherit; font-size: 0.9rem; transition: background 0.2s;">
+                    Export PNG
+                </button>
+                <div class="theme-toggle" id="theme-btn" onclick="toggleTheme()" title="Toggle Theme">
+                    <!-- icon injected by JS -->
+                </div>
             </div>
         </div>
 
@@ -40,8 +46,8 @@
             <h2 id="upload-title">Drop a .csv file here or click to browse</h2>
             <p class="desc" id="upload-desc">Exported from <a href="https://github.com/Tyrrrz/DiscordChatExporter" target="_blank" rel="noopener" style="color:var(--accent);text-decoration:none;" onclick="event.stopPropagation()">DiscordChatExporter</a></p>
             <label class="upload-btn" onclick="event.stopPropagation()">
-                Choose file
-                <input type="file" id="csv-upload" accept=".csv" style="display:none" />
+                Choose files
+                <input type="file" id="csv-upload" accept=".csv" multiple style="display:none" />
             </label>
             <div class="upload-options" onclick="event.stopPropagation()">
                 <input type="checkbox" id="exclude-bots" checked>
@@ -145,6 +151,12 @@
                 <div class="chart-card full-width">
                     <div class="chart-title">Activity Over Time</div>
                     <div class="chart-container tall"><canvas id="timelineChart"></canvas></div>
+                </div>
+
+                <div class="chart-card full-width">
+                    <div class="chart-title">Cumulative Messages</div>
+                    <div class="chart-desc">Running total of messages over time</div>
+                    <div class="chart-container tall"><canvas id="cumulativeChart"></canvas></div>
                 </div>
 
                 <div class="chart-card full-width">
